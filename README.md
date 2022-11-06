@@ -7,7 +7,7 @@ $ ./downloader.py [PLAYER_ID] [DIR] [LIMIT]
 python downloader.py [PLAYER_ID] [DIR] [LIMIT]
 ```
 
-PLAYER_ID: The player's id to download favourite beatmaps from.
+PLAYER_ID: The player's id to download favourite beatmaps of.
 
 DIR: Either absolute or relative path of the directory to store the files.
 
