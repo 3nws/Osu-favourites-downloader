@@ -1,11 +1,13 @@
-## osu! favourites downloader
+## osu! user beatmaps downloader
 
 ```
-$ ./download.py [PLAYER_ID] [DIR] [LIMIT]
+$ ./download.py [MODE] [PLAYER_ID] [DIR] [LIMIT]
 ```
 ```
-python download.py [PLAYER_ID] [DIR] [LIMIT]
+python download.py [MODE] [PLAYER_ID] [DIR] [LIMIT]
 ```
+
+MODE: Either "fav" or "best".
 
 PLAYER_ID: The player's id to download favourite beatmaps of.
 

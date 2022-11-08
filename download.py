@@ -12,6 +12,28 @@ from zipfile import ZipFile
 
 from config import *
 
+class CredentialsError(Exception):
+    pass
+
+
+class ArgumentsException(Exception):
+    pass
+
+sess = requests.Session()
+res = sess.post(
+    "https://osu.ppy.sh/oauth/token",
+    json={
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "client_credentials",
+        "scope": "public",
+    },
+)
+token = None
+try:
+    token = res.json()["access_token"]
+except KeyError:
+    raise CredentialsError("Please check your credentials!")
 
 class BeatmapSet:
     def __init__(self, **kwargs):
@@ -25,19 +47,22 @@ class BeatmapSet:
 def read_beatmap_list(**kwargs):
     beatmap_list = []
     json_ = kwargs.pop("json", None)
-    if json_ is not None:
+    mode = kwargs.pop("mode", None)
+    if json_ is not None and mode is not None:
         for beatmap in json_:
-            b = BeatmapSet(**beatmap)
-            beatmap_list.append(b)
+            if mode == "fav":
+                b = BeatmapSet(**beatmap)
+                beatmap_list.append(b)
+            elif mode == "best":
+                bsetid = beatmap["beatmap"]["beatmapset_id"]
+                url = (
+                    f"https://osu.ppy.sh/api/v2/beatmapsets/{bsetid}"
+                )
+                res = sess.get(url)
+                map_ = res.json()
+                b = BeatmapSet(**map_)
+                beatmap_list.append(b)
     return beatmap_list
-
-
-class CredentialsError(Exception):
-    pass
-
-
-class ArgumentsException(Exception):
-    pass
 
 
 def add_to_zip(paths, name):
@@ -129,25 +154,17 @@ def download_beatmapset(beatmapset, absolute_path):
     return downloaded
 
 
-def read_favourites(player, *, limit=100):
-    sess = requests.Session()
-    res = sess.post(
-        "https://osu.ppy.sh/oauth/token",
-        json={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "grant_type": "client_credentials",
-            "scope": "public",
-        },
-    )
-    token = None
-    try:
-        token = res.json()["access_token"]
-    except KeyError:
-        raise CredentialsError("Please check your credentials!")
-    url = (
-        f"https://osu.ppy.sh/api/v2/users/{player}/beatmapsets/favourite?limit={limit}"
-    )
+def read_beatmaps(mode, player, *, limit=100):
+    if mode == "fav":
+        url = (
+            f"https://osu.ppy.sh/api/v2/users/{player}/beatmapsets/favourite?limit={limit}"
+        )
+    elif mode == "best":
+        url = (
+            f"https://osu.ppy.sh/api/v2/users/{player}/scores/best?limit={limit}"
+        )
+    else:
+        raise ArgumentsException("Please pick either 'fav' or 'best'!")
     sess.headers.update(
         {
             "Authorization": f"Bearer {token}",
@@ -157,15 +174,22 @@ def read_favourites(player, *, limit=100):
     )
     res = sess.get(url)
     maps = res.json()
-    return read_beatmap_list(json=maps)
+    return read_beatmap_list(json=maps, mode=mode)
 
 
-def download_favourites(player, download_dir, limit=None):
+def download_beatmaps(mode, player, download_dir, limit=None):
+    stored_results = []
     abs_path = abspath(download_dir)
     if limit is not None:
-        stored_results = read_favourites(player, limit=limit)
+        if mode == "fav":
+            stored_results = read_beatmaps(mode, player, limit=limit)
+        if mode == "best":
+            stored_results = read_beatmaps(mode, player, limit=limit)
     else:
-        stored_results = read_favourites(player)
+        if mode == "fav":
+            stored_results = read_beatmaps(mode, player)
+        if mode == "best":
+            stored_results = read_beatmaps(mode, player)
     counter = 0
     downloaded = []
     for b in stored_results:
@@ -180,12 +204,18 @@ def download_favourites(player, download_dir, limit=None):
 
 
 def main(args):
-    if len(args) < 2:
+    if len(args) < 3:
         raise ArgumentsException("Please check the arguments.")
-    if len(args) > 2:
-        download_favourites(args[0], args[1], int(args[2]))
+    if len(args) > 4:
+        if args[0] == "fav":
+            download_beatmaps(args[0], args[1], args[2], int(args[3]))
+        elif args[0] == "best":
+            download_beatmaps(args[0], args[1], args[2], int(args[3]))
     else:
-        download_favourites(args[0], args[1])
+        if args[0] == "fav":
+            download_beatmaps(args[0], args[1], args[2])
+        elif args[0] == "best":
+            download_beatmaps(args[0], args[1], args[2])
 
 
 if __name__ == "__main__":
