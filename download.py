@@ -37,11 +37,11 @@ except KeyError:
 
 class BeatmapSet:
     def __init__(self, **kwargs):
-        self.title = kwargs["title"]
-        self.id = str(kwargs["id"])
-        self.artist = kwargs["artist"]
-        self.status = kwargs["status"]
-        self.favourite_count = kwargs["favourite_count"]
+        for k, v in kwargs.items():
+            setattr(self, k, str(v))
+
+    def __repr__(self) -> str:
+        return f"{self.title} - {self.id}"
 
 
 def read_beatmap_list(**kwargs):
