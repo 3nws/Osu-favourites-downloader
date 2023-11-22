@@ -162,7 +162,7 @@ def download_beatmapset(beatmapset: BeatmapSet, absolute_path: str) -> Optional[
     return downloaded
 
 
-def read_beatmaps(mode: str, player: str, *, limit: int = 100):
+def read_beatmaps(mode: str, player: str, *, limit: Optional[int] = 100):
     if mode == "fav":
         url = f"https://osu.ppy.sh/api/v2/users/{player}/beatmapsets/favourite?limit={limit}"
     elif mode == "best":
@@ -186,16 +186,7 @@ def download_beatmaps(
 ):
     stored_results: list[BeatmapSet] = []
     abs_path = abspath(download_dir)
-    if limit is not None:
-        if mode == "fav":
-            stored_results = read_beatmaps(mode, player, limit=limit)
-        if mode == "best":
-            stored_results = read_beatmaps(mode, player, limit=limit)
-    else:
-        if mode == "fav":
-            stored_results = read_beatmaps(mode, player)
-        if mode == "best":
-            stored_results = read_beatmaps(mode, player)
+    stored_results = read_beatmaps(mode, player, limit=limit)
     counter = 0
     downloaded: list[Path] = []
     for b in stored_results:
