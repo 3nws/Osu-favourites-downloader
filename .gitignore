@@ -2,3 +2,7 @@
 /__pycache__/
 /lol/
 *.zip
+config.py
+*.osz
+/out/
+/.vscode/

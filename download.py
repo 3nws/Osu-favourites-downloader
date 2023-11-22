@@ -9,8 +9,10 @@ from time import monotonic
 from os.path import basename, dirname, abspath
 from pathlib import Path
 from zipfile import ZipFile
+from typing import Optional, Any
 
 from config import *
+
 
 class CredentialsError(Exception):
     pass
@@ -18,6 +20,7 @@ class CredentialsError(Exception):
 
 class ArgumentsException(Exception):
     pass
+
 
 sess = requests.Session()
 res = sess.post(
@@ -35,17 +38,23 @@ try:
 except KeyError:
     raise CredentialsError("Please check your credentials!")
 
+
 class BeatmapSet:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, str(v))
+    def __init__(self, **kwargs: Any):
+        self.title = kwargs.pop("title", None)
+        self.id = str(kwargs.pop("id", None))
+        self.beatmapset_id = str(kwargs.pop("beatmapset_id", None))
+        self.artist = kwargs.pop("artist", None)
+        self.status = kwargs.pop("status", None)
+        self.favourite_count = kwargs.pop("favourite_count", None)
 
-    def __repr__(self) -> str:
-        return f"{self.title} - {self.id}"
+    # def __init__(self, **kwargs: Any):
+    #     for k, v in kwargs.items():
+    #         setattr(self, k, str(v))
 
 
-def read_beatmap_list(**kwargs):
-    beatmap_list = []
+def read_beatmap_list(**kwargs: Any) -> list[BeatmapSet]:
+    beatmap_list: list[BeatmapSet] = []
     json_ = kwargs.pop("json", None)
     mode = kwargs.pop("mode", None)
     if json_ is not None and mode is not None:
@@ -55,9 +64,7 @@ def read_beatmap_list(**kwargs):
                 beatmap_list.append(b)
             elif mode == "best":
                 bsetid = beatmap["beatmap"]["beatmapset_id"]
-                url = (
-                    f"https://osu.ppy.sh/api/v2/beatmapsets/{bsetid}"
-                )
+                url = f"https://osu.ppy.sh/api/v2/beatmapsets/{bsetid}"
                 res = sess.get(url)
                 map_ = res.json()
                 b = BeatmapSet(**map_)
@@ -65,14 +72,14 @@ def read_beatmap_list(**kwargs):
     return beatmap_list
 
 
-def add_to_zip(paths, name):
-    print("Adding to zip....")
+def add_to_zip(paths: list[Path], name: str):
+    print("Zipping files....")
     with ZipFile(name, "w") as z:
         for f in paths:
             z.write(f, basename(f))
 
 
-def download_beatmapset(beatmapset, absolute_path):
+def download_beatmapset(beatmapset: BeatmapSet, absolute_path: str) -> Optional[Path]:
     mirrors = {
         "beatconnect.io": "https://beatconnect.io/b/{}",
         "chimu.moe": "https://api.chimu.moe/v1/download/{}?n=1",
@@ -80,17 +87,15 @@ def download_beatmapset(beatmapset, absolute_path):
     }
     downloaded = None
     try:
-        id = beatmapset.id
+        id_: str = beatmapset.id
     except AttributeError:
-        id = beatmapset.beatmapset_id
+        id_: str = beatmapset.beatmapset_id
     success = False
 
     for m in mirrors:
-        url = mirrors[m].format(id)
+        url = mirrors[m].format(id_)
         print(
-            "\nTrying to download #{0} from {1}. Press Ctrl + C if download gets stuck for too long.".format(
-                id, m
-            )
+            f"\nTrying to download #{id_} from {m}. Press Ctrl + C if download gets stuck for too long."
         )
 
         timeout = False
@@ -98,11 +103,13 @@ def download_beatmapset(beatmapset, absolute_path):
         try:
             r = requests.head(url, allow_redirects=True, timeout=10)
         except:
+            r = None
             timeout = True
 
         path = Path(absolute_path)
-        if not timeout and r.status_code == 200:  # type: ignore
-            filename = path.joinpath(id + ".osz")
+
+        if not timeout and r is not None and r.status_code == 200:
+            filename = path.joinpath(id_ + ".osz")
 
             os.makedirs(dirname(filename), exist_ok=True)
             with open(filename, "wb") as f:
@@ -113,6 +120,7 @@ def download_beatmapset(beatmapset, absolute_path):
                         "User-Agent": "Mozilla/5.0 (X11; CrOS x86_64 12871.102.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.141 Safari/537.36"
                     }
                 )
+
                 response = sess.get(
                     r.url,
                     stream=True,
@@ -141,7 +149,7 @@ def download_beatmapset(beatmapset, absolute_path):
             downloaded = filename
 
             if filename.exists():
-                print(f"\nDownloaded #{id}")
+                print(f"\nDownloaded {beatmapset.title or ''} #{id_}")
                 success = True
 
     if not success:
@@ -150,19 +158,15 @@ def download_beatmapset(beatmapset, absolute_path):
             "Please manually download the beatmap from osu.ppy.sh!".format(id)
         )
 
-    print("\nFinished downloading!")
+    print(f"\nFinished downloading {beatmapset.title or ''} #{id_}!")
     return downloaded
 
 
-def read_beatmaps(mode, player, *, limit=100):
+def read_beatmaps(mode: str, player: str, *, limit: int = 100):
     if mode == "fav":
-        url = (
-            f"https://osu.ppy.sh/api/v2/users/{player}/beatmapsets/favourite?limit={limit}"
-        )
+        url = f"https://osu.ppy.sh/api/v2/users/{player}/beatmapsets/favourite?limit={limit}"
     elif mode == "best":
-        url = (
-            f"https://osu.ppy.sh/api/v2/users/{player}/scores/best?limit={limit}"
-        )
+        url = f"https://osu.ppy.sh/api/v2/users/{player}/scores/best?limit={limit}"
     else:
         raise ArgumentsException("Please pick either 'fav' or 'best'!")
     sess.headers.update(
@@ -177,8 +181,10 @@ def read_beatmaps(mode, player, *, limit=100):
     return read_beatmap_list(json=maps, mode=mode)
 
 
-def download_beatmaps(mode, player, download_dir, limit=None):
-    stored_results = []
+def download_beatmaps(
+    mode: str, player: str, download_dir: str, limit: Optional[int] = None
+):
+    stored_results: list[BeatmapSet] = []
     abs_path = abspath(download_dir)
     if limit is not None:
         if mode == "fav":
@@ -191,7 +197,7 @@ def download_beatmaps(mode, player, download_dir, limit=None):
         if mode == "best":
             stored_results = read_beatmaps(mode, player)
     counter = 0
-    downloaded = []
+    downloaded: list[Path] = []
     for b in stored_results:
         file = download_beatmapset(b, abs_path)
         if file is not None:
@@ -199,14 +205,14 @@ def download_beatmaps(mode, player, download_dir, limit=None):
             counter += 1
             print(str(counter) + "/" + str(len(stored_results)) + " downloaded")
 
-    add_to_zip(downloaded, "maps.zip")
-    print("Files added to zip")
+    add_to_zip(downloaded, f"{abs_path}/maps.zip")
+    print("Files zipped")
 
 
-def main(args):
+def main(args: list[str]):
     if len(args) < 3:
         raise ArgumentsException("Please check the arguments.")
-    if len(args) > 4:
+    if len(args) > 3:
         if args[0] == "fav":
             download_beatmaps(args[0], args[1], args[2], int(args[3]))
         elif args[0] == "best":
