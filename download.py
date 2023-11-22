@@ -110,42 +110,42 @@ def download_beatmapset(beatmapset: BeatmapSet, absolute_path: str) -> Optional[
 
         if not timeout and r is not None and r.status_code == 200:
             filename = path.joinpath(id_ + ".osz")
-
             os.makedirs(dirname(filename), exist_ok=True)
-            with open(filename, "wb") as f:
-                print(f"Downloading {filename}")
-                sess = requests.Session()
-                sess.headers.update(
-                    {
-                        "User-Agent": "Mozilla/5.0 (X11; CrOS x86_64 12871.102.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.141 Safari/537.36"
-                    }
-                )
+            if not os.path.isfile(filename):
+                with open(filename, "wb") as f:
+                    print(f"Downloading {beatmapset.title or ''} #{id_}")
+                    sess = requests.Session()
+                    sess.headers.update(
+                        {
+                            "User-Agent": "Mozilla/5.0 (X11; CrOS x86_64 12871.102.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.141 Safari/537.36"
+                        }
+                    )
 
-                response = sess.get(
-                    r.url,
-                    stream=True,
-                )
-                total_length = response.headers.get("Content-Length")
-                start = last_print = monotonic()
-                if total_length is None:
-                    f.write(response.content)
-                else:
-                    dl = 0
-                    total_length = int(total_length)
-                    for data in response.iter_content(chunk_size=4096):
-                        now = monotonic()
-                        dl += len(data)
-                        f.write(data)
-                        if now - last_print > 1:
-                            done = int(50 * dl / total_length)
-                            speed = int(dl / (now - start) / 1024)
-                            n = (total_length - dl) / (speed * 1024)
-                            n = datetime.timedelta(seconds=n)
-                            sys.stdout.write(
-                                f"\r[{'='*done}{' '*(50-done)}] {int(100 * dl / total_length)}% - {speed} kb/s - {n}"
-                            )
-                            sys.stdout.flush()
-                            last_print = now
+                    response = sess.get(
+                        r.url,
+                        stream=True,
+                    )
+                    total_length = response.headers.get("Content-Length")
+                    start = last_print = monotonic()
+                    if total_length is None:
+                        f.write(response.content)
+                    else:
+                        dl = 0
+                        total_length = int(total_length)
+                        for data in response.iter_content(chunk_size=4096):
+                            now = monotonic()
+                            dl += len(data)
+                            f.write(data)
+                            if now - last_print > 1:
+                                done = int(50 * dl / total_length)
+                                speed = int(dl / (now - start) / 1024)
+                                n = (total_length - dl) / (speed * 1024)
+                                n = datetime.timedelta(seconds=n)
+                                sys.stdout.write(
+                                    f"\r[{'='*done}{' '*(50-done)}] {int(100 * dl / total_length)}% - {speed} kb/s - {n}"
+                                )
+                                sys.stdout.flush()
+                                last_print = now
             downloaded = filename
 
             if filename.exists():
@@ -212,16 +212,9 @@ def download_beatmaps(
 def main(args: list[str]):
     if len(args) < 3:
         raise ArgumentsException("Please check the arguments.")
-    if len(args) > 3:
-        if args[0] == "fav":
-            download_beatmaps(args[0], args[1], args[2], int(args[3]))
-        elif args[0] == "best":
-            download_beatmaps(args[0], args[1], args[2], int(args[3]))
-    else:
-        if args[0] == "fav":
-            download_beatmaps(args[0], args[1], args[2])
-        elif args[0] == "best":
-            download_beatmaps(args[0], args[1], args[2])
+    download_beatmaps(
+        args[0], args[1], args[2], int(args[3]) if len(args) >= 4 else None
+    )
 
 
 if __name__ == "__main__":
